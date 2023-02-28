@@ -1,7 +1,6 @@
-use std::{
-    ops::{Deref, DerefMut, Index, IndexMut, Range, RangeFrom, RangeTo},
-    slice::SliceIndex,
-};
+use std::ops::{Deref, DerefMut};
+
+// ------- STEP 1 -------
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum LocalStorageVec<T, const N: usize> {
@@ -9,52 +8,95 @@ pub enum LocalStorageVec<T, const N: usize> {
     Heap(Vec<T>),
 }
 
-impl<T, const N: usize> LocalStorageVec<T, N> {
-    pub fn clear(&mut self) {
-        match self {
-            LocalStorageVec::Stack { len, .. } => *len = 0,
-            LocalStorageVec::Heap(v) => v.clear(),
-        }
+// ------- STEP 2 -------
+
+impl<T: Default, const N: usize> LocalStorageVec<T, N> {
+    // hint: the Default instance on arrays
+    pub fn new() -> Self {
+        todo!()
     }
 
-    // Done
-    pub fn len(&self) -> usize {
-        match self {
-            LocalStorageVec::Stack { len, .. } => *len,
-            LocalStorageVec::Heap(v) => v.len(),
-        }
+    // hint: https://doc.rust-lang.org/std/vec/struct.Vec.html#method.with_capacity
+    /// A `LocalStorageVec` with 0 elements, but which has space for `capacity` elements
+    pub fn with_capacity(capacity: usize) -> Self {
+        todo!()
     }
 }
 
+// implements default for any N, and any T that itself implements Default
+impl<T: Default, const N: usize> Default for LocalStorageVec<T, N> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T, const N: usize> LocalStorageVec<T, N> {
+    // hint: `match self { .. }`
+    pub fn is_empty(&self) -> usize {
+        todo!()
+    }
+
+    pub fn len(&self) -> usize {
+        todo!()
+    }
+
+    pub fn capacity(&self) -> usize {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+mod test2 {
+    use super::*;
+
+    #[test]
+    fn len_capacity_array() {
+        let lsv = LocalStorageVec::Stack {
+            buf: [1u8, 2, 3, 4],
+            len: 2,
+        };
+
+        assert_eq!(lsv.len(), 2);
+        assert_eq!(lsv.capacity(), 4);
+    }
+
+    #[test]
+    fn len_capacity_vec() {
+        let lsv: LocalStorageVec<u8, 12> = LocalStorageVec::Heap(vec![1, 2, 3, 4]);
+
+        assert_eq!(lsv.len(), 4);
+        assert_eq!(lsv.capacity(), 4);
+
+        let mut vec = Vec::with_capacity(42);
+        vec.push(1);
+        vec.push(2);
+
+        let lsv: LocalStorageVec<u8, 12> = LocalStorageVec::Heap(vec);
+
+        assert_eq!(lsv.len(), 4);
+        assert_eq!(lsv.capacity(), 4);
+    }
+
+    #[test]
+    fn is_empty() {
+        todo!("add asserts for the vec and array case testing is_empty")
+    }
+}
+
+// ------- STEP 3 -------
+
 impl<T: Default, const N: usize> LocalStorageVec<T, N> {
-    // Done
-    pub fn new() -> Self {
-        Self::Stack {
-            buf: [(); N].map(|_| Default::default()),
-            len: 0,
-        }
-    }
-
-    // Done
-    pub fn with_capacity(capacity: usize) -> Self {
-        if capacity <= N {
-            Self::new()
-        } else {
-            Self::Heap(Vec::with_capacity(capacity))
-        }
-    }
-
-    // Done
     pub fn push(&mut self, value: T) {
         match self {
             LocalStorageVec::Stack { buf, len } if *len < N => {
-                buf[*len] = value;
-                *len += 1;
+                todo!()
             }
             LocalStorageVec::Stack { buf, len } => {
                 let mut v = Vec::with_capacity(*len + 1);
 
                 for e in buf.iter_mut() {
+                    // NOTE this trick: here we are able to take a value out of a `&mut T` reference!
+                    // (this works because `T` implements `Default`
                     v.push(std::mem::take(e));
                 }
 
@@ -62,317 +104,196 @@ impl<T: Default, const N: usize> LocalStorageVec<T, N> {
 
                 *self = LocalStorageVec::Heap(v);
             }
-            LocalStorageVec::Heap(v) => v.push(value),
+            LocalStorageVec::Heap(v) => {
+                todo!()
+            }
         }
     }
 
-    // Done
     pub fn pop(&mut self) -> Option<T> {
         match self {
             LocalStorageVec::Stack { buf, len } if *len > 0 => {
-                let value = std::mem::take(&mut buf[*len - 1]);
-                *len -= 1;
-                Some(value)
+                // hint: use `std::mem::take` (see above)
+                todo!()
             }
             Self::Stack { .. } => None,
             LocalStorageVec::Heap(v) => v.pop(),
         }
     }
+}
 
-    fn swap(&mut self, i: usize, j: usize) {
-        assert!(i < self.len());
-        assert!(j < self.len());
+#[cfg(test)]
+mod test3 {
+    use super::*;
 
-        match self {
-            LocalStorageVec::Stack { buf, .. } => buf.swap(i, j),
-            LocalStorageVec::Heap(vec) => vec.swap(i, j),
-        }
-    }
+    #[test]
+    fn len_capacity_array() {
+        let mut lsv = LocalStorageVec::Stack {
+            buf: [1u8, 2, 0xAA, 0xAA],
+            len: 2,
+        };
 
-    pub fn insert(&mut self, index: usize, element: T) {
-        self.push(element);
+        lsv.push(3);
+        lsv.push(4);
 
-        // move element into position, move all later elements one over
-        for i in index..self.len() {
-            self.swap(i, self.len() - 1);
-        }
-    }
+        assert_eq!(lsv.len(), 4);
+        assert!(matches!(lsv, LocalStorageVec::Stack { .. }));
 
-    pub fn remove(&mut self, index: usize) -> T {
-        assert!(index < self.len());
+        lsv.push(5);
 
-        // move the item from index to the back
-        for i in index..self.len() - 1 {
-            self.swap(i, i + 1);
-        }
-
-        // then pop it
-        self.pop().unwrap()
+        assert_eq!(lsv.len(), 5);
+        assert!(matches!(lsv, LocalStorageVec::Heap(_)));
     }
 }
 
-impl<T, const N: usize> From<Vec<T>> for LocalStorageVec<T, N> {
-    fn from(v: Vec<T>) -> Self {
-        Self::Heap(v)
-    }
-}
+// ------- STEP 4 -------
 
-impl<T: Default, const N: usize, const M: usize> From<[T; N]> for LocalStorageVec<T, M> {
-    fn from(value: [T; N]) -> Self {
-        if N <= M {
-            let mut it = value.into_iter();
-            Self::Stack {
-                buf: [(); M].map(|_| it.next().unwrap_or_default()),
-                len: N,
-            }
-        } else {
-            Self::Heap(Vec::from(value))
+impl<T: Default, const N: usize> Extend<T> for LocalStorageVec<T, N> {
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        for value in iter {
+            todo!()
         }
     }
 }
 
-impl<T, const N: usize> Deref for LocalStorageVec<T, N> {
-    type Target = [T];
+#[cfg(test)]
+mod test4 {
+    use super::*;
 
-    fn deref(&self) -> &Self::Target {
-        self.as_ref()
+    #[test]
+    fn dont_bend_extend() {
+        let mut lsv = LocalStorageVec::Stack {
+            buf: [1u8, 2, 0xAA, 0xAA],
+            len: 2,
+        };
+
+        lsv.extend([3, 4]);
+
+        assert_eq!(lsv.len(), 4);
+        assert!(matches!(lsv, LocalStorageVec::Stack { .. }));
+
+        lsv.extend(5..6);
+
+        assert_eq!(lsv.len(), 5);
+        assert!(matches!(lsv, LocalStorageVec::Heap(_)));
     }
 }
 
-impl<T, const N: usize> DerefMut for LocalStorageVec<T, N> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.as_mut()
-    }
+// ------- STEP 5 -------
+
+// turning our LocalStorageVec into an owned iterator over its elements involves two steps:
+//
+// - define an iterator type `IntoIter`, that implements Iterator.
+// - implement IntoIterator for LocalStorageVec
+
+pub enum IntoIter<T, const N: usize> {
+    Stack(std::iter::Take<std::array::IntoIter<T, N>>),
+    Heap(std::vec::IntoIter<T>),
 }
 
-impl<T, const N: usize> AsRef<[T]> for LocalStorageVec<T, N> {
-    fn as_ref(&self) -> &[T] {
-        match self {
-            LocalStorageVec::Stack { buf, len } => &buf[..*len],
-            LocalStorageVec::Heap(v) => v,
-        }
-    }
-}
+impl<T, const N: usize> Iterator for IntoIter<T, N> {
+    type Item = T;
 
-impl<T, const N: usize> AsMut<[T]> for LocalStorageVec<T, N> {
-    fn as_mut(&mut self) -> &mut [T] {
-        match self {
-            LocalStorageVec::Stack { buf, len } => &mut buf[..*len],
-            LocalStorageVec::Heap(v) => v,
-        }
+    fn next(&mut self) -> Option<Self::Item> {
+        // hint: both the stack and heap variants contain an iterator already
+        todo!()
     }
 }
 
 impl<T, const N: usize> IntoIterator for LocalStorageVec<T, N> {
     type Item = T;
 
-    type IntoIter = StackVecIter<T, N>;
+    type IntoIter = IntoIter<T, N>;
 
     fn into_iter(self) -> Self::IntoIter {
-        match self {
-            LocalStorageVec::Stack { buf, .. } => StackVecIter::Stack(buf.into_iter()),
-            LocalStorageVec::Heap(vec) => StackVecIter::Heap(vec.into_iter()),
-        }
-    }
-}
-
-pub enum StackVecIter<T, const N: usize> {
-    Stack(std::array::IntoIter<T, N>),
-    Heap(std::vec::IntoIter<T>),
-}
-
-impl<T, const N: usize> Iterator for StackVecIter<T, N> {
-    type Item = T;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            StackVecIter::Stack(it) => it.next(),
-            StackVecIter::Heap(it) => it.next(),
-        }
-    }
-}
-
-impl<T, const N: usize> ExactSizeIterator for StackVecIter<T, N> {
-    fn len(&self) -> usize {
-        match self {
-            StackVecIter::Stack(it) => it.len(),
-            StackVecIter::Heap(it) => it.len(),
-        }
-    }
-}
-
-impl<T: Default, const N: usize> FromIterator<T> for LocalStorageVec<T, N> {
-    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        let iter = iter.into_iter();
-        let (size_min, size_max) = iter.size_hint();
-        let mut vec = Self::with_capacity(size_max.unwrap_or(size_min));
-        match &mut vec {
-            LocalStorageVec::Stack { .. } => vec.extend(iter),
-            LocalStorageVec::Heap(v) => v.extend(iter),
-        }
-        vec
-    }
-}
-
-impl<T: Default, const N: usize> Extend<T> for LocalStorageVec<T, N> {
-    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
-        let iter = iter.into_iter();
-        let (size_min, size_max) = iter.size_hint();
-        let mut vec = Self::with_capacity(size_max.unwrap_or(size_min));
-        match self {
-            LocalStorageVec::Stack { .. } => {
-                for item in iter {
-                    vec.push(item);
-                }
-            }
-            LocalStorageVec::Heap(v) => v.extend(iter),
-        }
+        // hint: use the `it.take(N)` iterator method to only iterate over the first N elements
+        todo!();
     }
 }
 
 #[cfg(test)]
-mod test {
-    use crate::LocalStorageVec;
+mod test5 {
+    use super::*;
 
     #[test]
-    // #[cfg(feature = "disabled")]
-    fn it_pushes() {
-        let mut vec: LocalStorageVec<_, 128> = LocalStorageVec::new();
-        for value in 0..128 {
-            vec.push(value);
-        }
-        assert!(matches!(vec, LocalStorageVec::Stack { len: 128, .. }));
-        for value in 128..256 {
-            vec.push(value);
-        }
-        assert!(matches!(vec, LocalStorageVec::Heap(v) if v.len() == 256))
-    }
+    fn test_iter() {
+        let mut lsv = LocalStorageVec::Stack {
+            buf: [1u8, 2, 0xAA, 0xAA],
+            len: 2,
+        };
 
-    #[test]
-    fn it_lens() {
-        let vec: LocalStorageVec<_, 3> = LocalStorageVec::from([0, 1, 2]);
-        assert_eq!(vec.len(), 3);
-        let vec: LocalStorageVec<_, 2> = LocalStorageVec::from([0, 1, 2]);
-        assert_eq!(vec.len(), 3);
-    }
+        lsv.extend([3, 4]);
 
-    #[test]
-    // #[cfg(feature = "disabled")]
-    fn it_pops() {
-        let mut vec: LocalStorageVec<_, 128> = LocalStorageVec::from([0; 128]);
-        for _ in 0..128 {
-            assert_eq!(vec.pop(), Some(0))
-        }
-        assert_eq!(vec.pop(), None);
+        let elements: Vec<_> = lsv.into_iter().collect();
 
-        let mut vec: LocalStorageVec<_, 128> = LocalStorageVec::from([0; 256]);
-        for _ in 0..256 {
-            assert_eq!(vec.pop(), Some(0))
-        }
-        assert_eq!(vec.pop(), None);
-
-        let mut vec: LocalStorageVec<_, 128> = LocalStorageVec::from(vec![0; 256]);
-        for _ in 0..256 {
-            assert_eq!(vec.pop(), Some(0))
-        }
-        assert_eq!(vec.pop(), None);
-    }
-
-    #[test]
-    // #[cfg(feature = "disabled")]
-    fn it_inserts() {
-        let mut vec: LocalStorageVec<_, 4> = LocalStorageVec::from([0, 1, 2]);
-        vec.insert(1, 3);
-        assert!(matches!(
-            vec,
-            LocalStorageVec::Stack {
-                buf: [0, 3, 1, 2],
-                len: 4
-            }
-        ));
-
-        let mut vec: LocalStorageVec<_, 4> = LocalStorageVec::from([0, 1, 2, 3]);
-        vec.insert(1, 3);
-        assert!(matches!(vec, LocalStorageVec::Heap { .. }));
-        assert_eq!(vec.as_ref(), &[0, 3, 1, 2, 3]);
-
-        let mut vec: LocalStorageVec<_, 4> = LocalStorageVec::from([0, 1, 2, 3, 4]);
-        vec.insert(1, 3);
-        assert!(matches!(vec, LocalStorageVec::Heap { .. }));
-        assert_eq!(vec.as_ref(), &[0, 3, 1, 2, 3, 4])
-    }
-
-    #[test]
-    #[cfg(feature = "disabled")]
-    fn it_removes() {
-        let mut vec: LocalStorageVec<_, 4> = LocalStorageVec::from([0, 1, 2]);
-        let elem = vec.remove(1);
-        dbg!(&vec);
-        assert!(matches!(
-            vec,
-            LocalStorageVec::Stack {
-                buf: [0, 2, _, _],
-                len: 2
-            }
-        ));
-        assert_eq!(elem, 1);
-
-        let mut vec: LocalStorageVec<_, 2> = LocalStorageVec::from([0, 1, 2]);
-        let elem = vec.remove(1);
-        assert!(matches!(vec, LocalStorageVec::Heap(..)));
-        assert_eq!(vec.as_ref(), &[0, 2]);
-        assert_eq!(elem, 1);
-    }
-
-    #[test]
-    // #[cfg(feature = "disabled")]
-    fn it_iters() {
-        let vec: LocalStorageVec<_, 128> = LocalStorageVec::from([0; 128]);
-        let mut iter = vec.into_iter();
-        for item in &mut iter {
-            assert_eq!(item, 0);
-        }
-        assert_eq!(iter.next(), None);
-
-        let vec: LocalStorageVec<_, 128> = LocalStorageVec::from(vec![0; 128]);
-        let mut iter = vec.into_iter();
-        for item in &mut iter {
-            assert_eq!(item, 0);
-        }
-        assert_eq!(iter.next(), None);
+        assert_eq!(elements, vec![1, 2, 3, 4]);
     }
 }
 
-trait LocalStorageVecIndex<I> {}
+// ------- STEP 6 -------
 
-impl LocalStorageVecIndex<usize> for usize {}
+impl<T, const N: usize> Deref for LocalStorageVec<T, N> {
+    type Target = [T];
 
-impl LocalStorageVecIndex<usize> for RangeTo<usize> {}
-
-impl LocalStorageVecIndex<usize> for Range<usize> {}
-
-impl LocalStorageVecIndex<usize> for RangeFrom<usize> {}
-
-impl<T: Default + Copy, I: LocalStorageVecIndex<usize>, const N: usize> Index<I>
-    for LocalStorageVec<T, N>
-where
-    [T]: Index<I>,
-{
-    type Output = <[T] as Index<I>>::Output;
-
-    fn index(&self, index: I) -> &Self::Output {
-        let slice: &[T] = self.as_ref();
-        slice.index(index)
+    fn deref(&self) -> &Self::Target {
+        todo!()
     }
 }
 
-impl<T: Default + Copy, I: LocalStorageVecIndex<usize> + SliceIndex<[T]>, const N: usize>
-    IndexMut<I> for LocalStorageVec<T, N>
-where
-    [T]: Index<I>,
-{
-    fn index_mut(&mut self, index: I) -> &mut Self::Output {
-        let slice: &mut [T] = self.as_mut();
-        slice.index_mut(index)
+impl<T, const N: usize> DerefMut for LocalStorageVec<T, N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        todo!()
     }
+}
+
+#[cfg(test)]
+mod test6 {
+    use super::*;
+
+    #[test]
+    /// sort is implemented on `&mut [T]`, which we can use because of DerefMut
+    fn test_sort() {
+        let mut lsv = LocalStorageVec::Stack {
+            buf: [2, 1u8, 0xAA, 0xAA],
+            len: 2,
+        };
+
+        lsv.extend([4, 3]);
+
+        lsv.sort();
+
+        let elements: Vec<_> = lsv.into_iter().collect();
+
+        assert_eq!(elements, vec![1, 2, 3, 4]);
+    }
+
+    #[test]
+    /// indexing is implemented for `&[u8]`
+    fn test_indexing() {
+        let lsv = LocalStorageVec::Stack {
+            buf: [2, 1u8, 0xAA, 0xAA],
+            len: 2,
+        };
+
+        assert_eq!(lsv[0], 1);
+    }
+}
+
+// ------- STEP 7 -------
+
+impl<T: Default, const N: usize> LocalStorageVec<T, N> {
+    pub fn insert(&mut self, index: usize, element: T) {
+        todo!()
+    }
+
+    pub fn remove(&mut self, index: usize) -> T {
+        todo!()
+    }
+}
+
+#[cfg(test)]
+mod test7 {
+    use super::*;
+
+    // write your own :)
 }
