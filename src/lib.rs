@@ -32,7 +32,7 @@ impl<T: Default, const N: usize> Default for LocalStorageVec<T, N> {
 
 impl<T, const N: usize> LocalStorageVec<T, N> {
     // hint: `match self { .. }`
-    pub fn is_empty(&self) -> usize {
+    pub fn is_empty(&self) -> bool {
         todo!()
     }
 
@@ -73,8 +73,8 @@ mod test2 {
 
         let lsv: LocalStorageVec<u8, 12> = LocalStorageVec::Heap(vec);
 
-        assert_eq!(lsv.len(), 4);
-        assert_eq!(lsv.capacity(), 4);
+        assert_eq!(lsv.len(), 2);
+        assert_eq!(lsv.capacity(), 42);
     }
 
     #[test]
