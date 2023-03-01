@@ -11,15 +11,20 @@ pub enum LocalStorageVec<T, const N: usize> {
 // ------- STEP 2 -------
 
 impl<T: Default, const N: usize> LocalStorageVec<T, N> {
-    // hint: the Default instance on arrays
     pub fn new() -> Self {
-        todo!()
+        Self::Stack { buf:
+        // alternatively `[0; N].map(|_| T::default()`
+        // Just `Default::default` does not work (limitation in std)
+        std::array::from_fn(|_| T::default()) , len: 0 }
     }
 
-    // hint: https://doc.rust-lang.org/std/vec/struct.Vec.html#method.with_capacity
     /// A `LocalStorageVec` with 0 elements, but which has space for `capacity` elements
     pub fn with_capacity(capacity: usize) -> Self {
-        todo!()
+        if capacity <= N {
+            Self::new()
+        } else {
+            Self::Heap(Vec::with_capacity(capacity))
+        }
     }
 }
 
@@ -33,15 +38,24 @@ impl<T: Default, const N: usize> Default for LocalStorageVec<T, N> {
 impl<T, const N: usize> LocalStorageVec<T, N> {
     // hint: `match self { .. }`
     pub fn is_empty(&self) -> bool {
-        todo!()
+        match self {
+            LocalStorageVec::Stack { len, .. } => *len == 0,
+            LocalStorageVec::Heap(vec) => vec.is_empty(),
+        }
     }
 
     pub fn len(&self) -> usize {
-        todo!()
+        match self {
+            LocalStorageVec::Stack { len, .. } => *len,
+            LocalStorageVec::Heap(vec) => vec.len(),
+        }
     }
 
     pub fn capacity(&self) -> usize {
-        todo!()
+        match self {
+            LocalStorageVec::Stack { .. } => N,
+            LocalStorageVec::Heap(vec) => vec.capacity(),
+        }
     }
 }
 
@@ -79,7 +93,23 @@ mod test2 {
 
     #[test]
     fn is_empty() {
-        todo!("add asserts for the vec and array case testing is_empty")
+        let lsv = LocalStorageVec::Stack {
+            buf: [1u8, 2, 3, 4],
+            len: 2,
+        };
+        assert!(!lsv.is_empty());
+
+        let lsv = LocalStorageVec::Stack {
+            buf: [1u8, 2, 3, 4],
+            len: 0,
+        };
+        assert!(lsv.is_empty());
+
+        let lsv: LocalStorageVec<u8, 12> = LocalStorageVec::Heap(vec![1, 2, 3, 4]);
+        assert!(!lsv.is_empty());
+
+        let lsv: LocalStorageVec<u8, 12> = LocalStorageVec::Heap(vec![]);
+        assert!(lsv.is_empty());
     }
 }
 
@@ -89,7 +119,8 @@ impl<T: Default, const N: usize> LocalStorageVec<T, N> {
     pub fn push(&mut self, value: T) {
         match self {
             LocalStorageVec::Stack { buf, len } if *len < N => {
-                todo!()
+                buf[*len] = value;
+                *len += 1;
             }
             LocalStorageVec::Stack { buf, len } => {
                 let mut v = Vec::with_capacity(*len + 1);
@@ -104,9 +135,7 @@ impl<T: Default, const N: usize> LocalStorageVec<T, N> {
 
                 *self = LocalStorageVec::Heap(v);
             }
-            LocalStorageVec::Heap(v) => {
-                todo!()
-            }
+            LocalStorageVec::Heap(v) => v.push(value),
         }
     }
 
@@ -114,7 +143,8 @@ impl<T: Default, const N: usize> LocalStorageVec<T, N> {
         match self {
             LocalStorageVec::Stack { buf, len } if *len > 0 => {
                 // hint: use `std::mem::take` (see above)
-                todo!()
+                *len -= 1;
+                Some(std::mem::take(&mut buf[*len]))
             }
             Self::Stack { .. } => None,
             LocalStorageVec::Heap(v) => v.pop(),
@@ -151,7 +181,8 @@ mod test3 {
 impl<T: Default, const N: usize> Extend<T> for LocalStorageVec<T, N> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for value in iter {
-            todo!()
+            // NOTE you could be smarter here with capacity
+            self.push(value)
         }
     }
 }
@@ -195,8 +226,10 @@ impl<T, const N: usize> Iterator for IntoIter<T, N> {
     type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // hint: both the stack and heap variants contain an iterator already
-        todo!()
+        match self {
+            IntoIter::Stack(it) => it.next(),
+            IntoIter::Heap(it) => it.next(),
+        }
     }
 }
 
@@ -206,8 +239,10 @@ impl<T, const N: usize> IntoIterator for LocalStorageVec<T, N> {
     type IntoIter = IntoIter<T, N>;
 
     fn into_iter(self) -> Self::IntoIter {
-        // hint: use the `it.take(N)` iterator method to only iterate over the first N elements
-        todo!();
+        match self {
+            LocalStorageVec::Stack { buf, len } => IntoIter::Stack(buf.into_iter().take(len)),
+            LocalStorageVec::Heap(vec) => IntoIter::Heap(vec.into_iter()),
+        }
     }
 }
 
@@ -236,13 +271,19 @@ impl<T, const N: usize> Deref for LocalStorageVec<T, N> {
     type Target = [T];
 
     fn deref(&self) -> &Self::Target {
-        todo!()
+        match self {
+            LocalStorageVec::Stack { buf, len } => &buf[..*len],
+            LocalStorageVec::Heap(vec) => vec.deref(),
+        }
     }
 }
 
 impl<T, const N: usize> DerefMut for LocalStorageVec<T, N> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        todo!()
+        match self {
+            LocalStorageVec::Stack { buf, len } => &mut buf[..*len],
+            LocalStorageVec::Heap(vec) => vec.deref_mut(),
+        }
     }
 }
 
@@ -275,7 +316,7 @@ mod test6 {
             len: 2,
         };
 
-        assert_eq!(lsv[0], 1);
+        assert_eq!(lsv[0], 2);
     }
 }
 
@@ -283,11 +324,26 @@ mod test6 {
 
 impl<T: Default, const N: usize> LocalStorageVec<T, N> {
     pub fn insert(&mut self, index: usize, element: T) {
-        todo!()
+        self.push(element);
+
+        let length = self.len();
+
+        // move element into position, move all later elements one over
+        for i in index..length {
+            self.swap(i, length - 1);
+        }
     }
 
     pub fn remove(&mut self, index: usize) -> T {
-        todo!()
+        assert!(index < self.len());
+
+        // move the item from index to the back
+        for i in index..self.len() - 1 {
+            self.swap(i, i + 1);
+        }
+
+        // then pop it
+        self.pop().unwrap()
     }
 }
 
