@@ -10,7 +10,7 @@ pub enum LocalStorageVec<T, const N: usize> {
 
 // ------- STEP 2 -------
 
-impl<T: Default, const N: usize> LocalStorageVec<T, N> {
+impl<T: Default + Copy, const N: usize> LocalStorageVec<T, N> {
     // hint: the Default instance on arrays
     pub fn new() -> Self {
         todo!()
@@ -24,7 +24,7 @@ impl<T: Default, const N: usize> LocalStorageVec<T, N> {
 }
 
 // implements default for any N, and any T that itself implements Default
-impl<T: Default, const N: usize> Default for LocalStorageVec<T, N> {
+impl<T: Default + Copy, const N: usize> Default for LocalStorageVec<T, N> {
     fn default() -> Self {
         Self::new()
     }
@@ -85,7 +85,7 @@ mod test2 {
 
 // ------- STEP 3 -------
 
-impl<T: Default, const N: usize> LocalStorageVec<T, N> {
+impl<T: Default + Copy, const N: usize> LocalStorageVec<T, N> {
     pub fn push(&mut self, value: T) {
         match self {
             LocalStorageVec::Stack { buf, len } if *len < N => {
@@ -148,7 +148,7 @@ mod test3 {
 
 // ------- STEP 4 -------
 
-impl<T: Default, const N: usize> Extend<T> for LocalStorageVec<T, N> {
+impl<T: Default + Copy, const N: usize> Extend<T> for LocalStorageVec<T, N> {
     fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
         for value in iter {
             todo!()
@@ -281,7 +281,7 @@ mod test6 {
 
 // ------- STEP 7 -------
 
-impl<T: Default, const N: usize> LocalStorageVec<T, N> {
+impl<T: Default + Copy, const N: usize> LocalStorageVec<T, N> {
     pub fn insert(&mut self, index: usize, element: T) {
         todo!()
     }
